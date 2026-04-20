@@ -86,7 +86,10 @@ class Button:
         surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
 
     def is_clicked(self, event):
-        return event.type == pygame.MOUSEBUTTONDOWN and self.rect.colliderect(event.pos)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+         if hasattr(event, "pos"):
+            return self.rect.collidepoint(event.pos)
+        return False
 
 
 # Volume Button
@@ -110,7 +113,7 @@ class VolumeButton:
 
 # Main Menu
 def main_menu():
-    play_button = Button("Play", SCREEN_WIDTH//2 - 100, 200, 200, 50, GRAY, DARK_GRAY)
+    play_button = Button("play", SCREEN_WIDTH//2 - 100, 200, 200, 50, GRAY, DARK_GRAY)
     exit_button = Button("Exit", SCREEN_WIDTH//2 - 100, 360, 200, 50, GRAY, DARK_GRAY)
     volume_button = VolumeButton(SCREEN_WIDTH - 60, 50, 40)
 
