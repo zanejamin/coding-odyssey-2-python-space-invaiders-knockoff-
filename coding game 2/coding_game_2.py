@@ -197,15 +197,13 @@ def game():
 
     enemy_list = []
 
-    # ---------------------------------------------------------
     # Spawn Enemies (nested correctly)
-    # ---------------------------------------------------------
     def spawn_enemies():
         nonlocal current_level, current_level_alien_version
         enemy_list.clear()
 
         rows = min(2 + (current_level // 5), 6)
-        aliens_per_row = 7
+        aliens_per_row = 9
         spacing_x = 80
         spacing_y = 60
         start_x = (SCREEN_WIDTH - (aliens_per_row - 1) * spacing_x) // 2
@@ -234,9 +232,7 @@ def game():
 
     spawn_enemies()
 
-    # ---------------------------------------------------------
     # Player Setup
-    # ---------------------------------------------------------
     TARGET_PLAYER_WIDTH = 70
     player_frames = load_player_animation_frames(TARGET_PLAYER_WIDTH)
 
@@ -271,11 +267,9 @@ def game():
     )
 
     explosion_list = []
-    pre_fire_duration_ms = 380
+    pre_fire_duration_ms = 400
 
-    # ---------------------------------------------------------
     # Enemy Movement (nested correctly)
-    # ---------------------------------------------------------
     def move_enemies():
         nonlocal enemy_horizontal_direction
 
@@ -294,22 +288,18 @@ def game():
                 for enemy in enemy_list:
                     enemy["y"] += enemy_vertical_drop_amount
 
-    # ---------------------------------------------------------
     # Level Up
-    # ---------------------------------------------------------
     def level_up():
         nonlocal current_level, enemy_horizontal_speed, current_level_alien_version
         current_level += 1
-        enemy_horizontal_speed += 0.5
+        enemy_horizontal_speed += 0.2
 
         # New version each level
         current_level_alien_version = random.choice(ALIEN_VERSIONS)
 
         spawn_enemies()
 
-    # ---------------------------------------------------------
     # Alien Shooting (schedule pre-fire)
-    # ---------------------------------------------------------
     def schedule_alien_shot(current_time):
         if not enemy_list:
             return
@@ -326,9 +316,7 @@ def game():
         shooter["pending_shot_type"] = pending_type
         shooter["current_frame_index"] = 0
 
-    # ---------------------------------------------------------
     # Draw Explosions
-    # ---------------------------------------------------------
     def draw_explosions():
         for explosion in explosion_list[:]:
             pygame.draw.circle(screen, YELLOW, explosion['pos'], explosion['radius'])
@@ -337,7 +325,6 @@ def game():
                 explosion_list.remove(explosion)
 
     # Main Game Loop
-    # ---------------------------------------------------------
     running = True
     while running:
         current_time = pygame.time.get_ticks()
@@ -351,9 +338,7 @@ def game():
                 alien_min_shot_interval_ms, alien_max_shot_interval_ms
             )
 
-        # -----------------------------------------------------
         # Event Handling
-        # -----------------------------------------------------
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -370,18 +355,14 @@ def game():
                         )
                         last_player_shot_timestamp = current_time
 
-        # -----------------------------------------------------
         # Player Movement
-        # -----------------------------------------------------
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT] and player_position_x > 0:
             player_position_x -= player_movement_speed
         if keys[pygame.K_RIGHT] and player_position_x < SCREEN_WIDTH - player_ship_width:
             player_position_x += player_movement_speed
 
-        # -----------------------------------------------------
         # Player Animation
-        # -----------------------------------------------------
         if player_frames:
             player_animation_timer += player_animation_speed
             if player_animation_timer >= 1:
@@ -404,9 +385,7 @@ def game():
             player_ship_height - 20
         )
 
-        # -----------------------------------------------------
         # Player Bullets
-        # -----------------------------------------------------
         for bullet in player_bullet_list[:]:
             bullet[1] -= bullet_vertical_speed
             if bullet[1] < 0:
@@ -414,9 +393,7 @@ def game():
             else:
                 pygame.draw.rect(screen, WHITE, (bullet[0], bullet[1], 5, 10))
 
-        # -----------------------------------------------------
         # Alien Pre-Fire Animation + Shooting
-        # -----------------------------------------------------
         for enemy in enemy_list:
             color = enemy["color"]
             version = enemy["version"]
@@ -445,9 +422,7 @@ def game():
 
                     enemy["pending_shot_type"] = None
 
-        # -----------------------------------------------------
         # Alien Bullets
-        # -----------------------------------------------------
         for bullet in alien_bullet_list[:]:
             bullet['pos'][1] += bullet_vertical_speed
 
@@ -481,14 +456,11 @@ def game():
                         return
                 continue
 
-        # -----------------------------------------------------
         # Move Enemies
-        # -----------------------------------------------------
+       
         move_enemies()
 
-        # -----------------------------------------------------
         # Draw Enemies + Track Rects
-        # -----------------------------------------------------
         enemy_rect_list = []
         for enemy in enemy_list:
             color = enemy["color"]
@@ -502,9 +474,7 @@ def game():
             enemy_rect_list.append(rect)
             screen.blit(current_frame, (enemy["x"], enemy["y"]))
 
-        # -----------------------------------------------------
         # Bullet Collision with Enemies
-        # -----------------------------------------------------
         for bullet in player_bullet_list[:]:
             bullet_rect = pygame.Rect(bullet[0], bullet[1], 5, 10)
             for enemy, enemy_rect in zip(enemy_list[:], enemy_rect_list[:]):
@@ -514,17 +484,13 @@ def game():
                     enemy_rect_list.remove(enemy_rect)
                     break
 
-        # -----------------------------------------------------
         # Enemy Collision with Player
-        # -----------------------------------------------------
         for enemy_rect in enemy_rect_list:
             if enemy_rect.colliderect(player_rect):
                 game_over_screen()
                 return
 
-        # -----------------------------------------------------
         # Enemies Reach Bottom
-        # -----------------------------------------------------
         for enemy in enemy_list:
             color = enemy["color"]
             version = enemy["version"]
@@ -534,9 +500,7 @@ def game():
                 game_over_screen()
                 return
 
-        # -----------------------------------------------------
         # Level Complete
-        # -----------------------------------------------------
         if not enemy_list:
             level_up()
             waiting = True
@@ -555,9 +519,7 @@ def game():
                         if event.key == pygame.K_ESCAPE:
                             return
 
-        # -----------------------------------------------------
         # Red Bullet Direct Hit
-        # -----------------------------------------------------
         for bullet in alien_bullet_list[:]:
             if bullet['color'] == RED:
                 if player_rect.collidepoint(bullet['pos'][0], bullet['pos'][1]):
@@ -568,9 +530,7 @@ def game():
                         game_over_screen()
                         return
 
-        # -----------------------------------------------------
         # HUD
-        # -----------------------------------------------------
         lives_text = small_font.render(f"Lives: {player_lives}", True, WHITE)
         screen.blit(lives_text, (10, 10))
 
@@ -604,9 +564,7 @@ def game_over_screen():
                     sys.exit()
 
 
-# ---------------------------------------------------------
 # Start Game
-# ---------------------------------------------------------
 if __name__ == "__main__":
     main_menu()
 
