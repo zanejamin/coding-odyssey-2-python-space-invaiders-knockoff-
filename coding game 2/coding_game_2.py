@@ -28,9 +28,7 @@ ALIEN_VERSIONS = ["a", "b", "c"]
 
 selected_ship_color = GREEN
 
-# ---------------------------------------------------------
-# FULLSCREEN FIX  Borderless fullscreen + dynamic resolution
-# ---------------------------------------------------------
+# Borderless fullscreen + dynamic resolution
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
 # Update screen size to match monitor resolution
@@ -44,7 +42,7 @@ clock = pygame.time.Clock()
 player_lives = 3
 pygame.mixer.music.set_volume(0.5)
 
-# Load Background Image (GAME ONLY, NOT MENU)
+# Load Background Image (GAME ONLY)
 background_image = pygame.image.load("assets/background/SpaceBg.png").convert()
 background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
@@ -52,8 +50,8 @@ background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREE
 # Neon Title Text
 def draw_neon_text(surface, text, font_obj, x, y, base_color):
     glow_colors = [
-        (base_color[0]//4, base_color[1]//4, base_color[2]//4),
-        (base_color[0]//2, base_color[1]//2, base_color[2]//2),
+        (base_color[0] // 4, base_color[1] // 4, base_color[2] // 4),
+        (base_color[0] // 2, base_color[1] // 2, base_color[2] // 2),
         base_color
     ]
     for i, color in enumerate(glow_colors):
@@ -86,10 +84,7 @@ class Button:
         surface.blit(text_surf, text_surf.get_rect(center=self.rect.center))
 
     def is_clicked(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-         if hasattr(event, "pos"):
-            return self.rect.collidepoint(event.pos)
-        return False
+        return event.type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(event.pos)
 
 
 # Volume Button
@@ -113,15 +108,15 @@ class VolumeButton:
 
 # Main Menu
 def main_menu():
-    play_button = Button("play", SCREEN_WIDTH//2 - 100, 200, 200, 50, GRAY, DARK_GRAY)
-    exit_button = Button("Exit", SCREEN_WIDTH//2 - 100, 360, 200, 50, GRAY, DARK_GRAY)
+    play_button = Button("Play", SCREEN_WIDTH // 2 - 100, 200, 200, 50, GRAY, DARK_GRAY)
+    exit_button = Button("Exit", SCREEN_WIDTH // 2 - 100, 360, 200, 50, GRAY, DARK_GRAY)
     volume_button = VolumeButton(SCREEN_WIDTH - 60, 50, 40)
 
     while True:
         screen.fill(BLACK)
 
         title_text = "Space Invaders Knockoff"
-        title_x = SCREEN_WIDTH//2 - font.size(title_text)[0]//2
+        title_x = SCREEN_WIDTH // 2 - font.size(title_text)[0] // 2
         title_y = 80
         draw_neon_text(screen, title_text, font, title_x, title_y, (0, 180, 255))
 
@@ -167,6 +162,20 @@ def load_player_animation_frames(target_width):
     return frames
 
 
+# Bomb frames: travel + explosion
+def load_bomb_frames(target_width):
+    travel = pygame.image.load("assets/explosions/bomb-a.png").convert_alpha()
+    travel = scale_image_keep_aspect(travel, target_width)
+
+    explosion_frames = []
+    for name in ["b", "c", "d", "e"]:
+        img = pygame.image.load(f"assets/explosions/bomb-{name}.png").convert_alpha()
+        img = scale_image_keep_aspect(img, target_width)
+        explosion_frames.append(img)
+
+    return travel, explosion_frames
+
+
 # Load Alien Sprites
 def load_alien_sprites(target_width):
     alien_sprites = {}
@@ -181,6 +190,8 @@ def load_alien_sprites(target_width):
                 frames.append(img)
             alien_sprites[color][version] = frames
     return alien_sprites
+
+
 # Game Loop
 def game():
     global player_lives
@@ -191,13 +202,14 @@ def game():
 
     TARGET_ALIEN_WIDTH = 50
     alien_sprites = load_alien_sprites(TARGET_ALIEN_WIDTH)
+    bomb_travel_frame, explosion_frames = load_bomb_frames(60)
 
     # One version per level
     current_level_alien_version = random.choice(ALIEN_VERSIONS)
 
     enemy_list = []
 
-    # Spawn Enemies (nested correctly)
+    # Spawn Enemies
     def spawn_enemies():
         nonlocal current_level, current_level_alien_version
         enemy_list.clear()
@@ -214,7 +226,6 @@ def game():
             for col in range(aliens_per_row):
                 x = start_x + col * spacing_x
 
-                # One version per level, random color per alien
                 alien_color = random.choice(ALIEN_COLORS)
                 alien_version = current_level_alien_version
 
@@ -267,9 +278,9 @@ def game():
     )
 
     explosion_list = []
-    pre_fire_duration_ms = 400
+    pre_fire_duration_ms = 430
 
-    # Enemy Movement (nested correctly)
+    # Enemy Movement
     def move_enemies():
         nonlocal enemy_horizontal_direction
 
@@ -294,9 +305,7 @@ def game():
         current_level += 1
         enemy_horizontal_speed += 0.2
 
-        # New version each level
         current_level_alien_version = random.choice(ALIEN_VERSIONS)
-
         spawn_enemies()
 
     # Alien Shooting (schedule pre-fire)
@@ -316,13 +325,31 @@ def game():
         shooter["pending_shot_type"] = pending_type
         shooter["current_frame_index"] = 0
 
-    # Draw Explosions
+    # Draw Explosions (UPDATED)
     def draw_explosions():
         for explosion in explosion_list[:]:
-            pygame.draw.circle(screen, YELLOW, explosion['pos'], explosion['radius'])
-            explosion['radius'] -= 0.5
-            if explosion['radius'] <= 0:
+            explosion['timer'] += 1
+
+            # Explosion lasts slightly longer
+            if explosion['timer'] >= 8:
+                explosion['timer'] = 0
+                explosion['frame'] += 1
+
+            if explosion['frame'] >= len(explosion_frames):
                 explosion_list.remove(explosion)
+                continue
+
+            # Explosion bigger
+            frame_img = explosion_frames[explosion['frame']]
+            scale = 1.5
+            w = int(frame_img.get_width() * scale)
+            h = int(frame_img.get_height() * scale)
+            frame_img = pygame.transform.scale(frame_img, (w, h))
+
+            x = explosion['pos'][0] - frame_img.get_width() // 2
+            y = explosion['pos'][1] - frame_img.get_height() // 2
+
+            screen.blit(frame_img, (x, y))
 
     # Main Game Loop
     running = True
@@ -416,9 +443,15 @@ def game():
                     shot_y = enemy["y"] + alien_height
 
                     if enemy["pending_shot_type"] == "green":
-                        alien_bullet_list.append({'pos': [shot_x, shot_y], 'color': GREEN, 'radius': 8})
+                        alien_bullet_list.append({
+                            'pos': [shot_x, shot_y],
+                            'type': 'green'
+                        })
                     else:
-                        alien_bullet_list.append({'pos': [shot_x, shot_y], 'color': RED, 'radius': 4})
+                        alien_bullet_list.append({
+                            'pos': [shot_x, shot_y],
+                            'type': 'red'
+                        })
 
                     enemy["pending_shot_type"] = None
 
@@ -427,22 +460,41 @@ def game():
             bullet['pos'][1] += bullet_vertical_speed
 
             # Green bombs track the player
-            if bullet['color'] == GREEN:
+            if bullet['type'] == 'green':
                 if bullet['pos'][0] < player_position_x:
                     bullet['pos'][0] += 1
                 elif bullet['pos'][0] > player_position_x:
                     bullet['pos'][0] -= 1
 
+            # Remove bullets off screen
             if bullet['pos'][1] > SCREEN_HEIGHT:
                 alien_bullet_list.remove(bullet)
                 continue
 
-            pygame.draw.circle(screen, bullet['color'], bullet['pos'], bullet['radius'])
+            # Draw bullets
+            if bullet['type'] == 'green':
+                # Missile bigger when traveling
+                scale = 1.4
+                w = int(bomb_travel_frame.get_width() * scale)
+                h = int(bomb_travel_frame.get_height() * scale)
+                missile_img = pygame.transform.scale(bomb_travel_frame, (w, h))
+
+                x = bullet['pos'][0] - missile_img.get_width() // 2
+                y = bullet['pos'][1] - missile_img.get_height() // 2
+                screen.blit(missile_img, (x, y))
+            else:
+                pygame.draw.circle(screen, RED, bullet['pos'], 4)
 
             # Green bomb explosion
-            if bullet['color'] == GREEN and bullet['pos'][1] >= player_position_y:
+            if bullet['type'] == 'green' and bullet['pos'][1] >= player_position_y:
                 explosion_center = [bullet['pos'][0], player_position_y + player_ship_height // 2]
-                explosion_list.append({'pos': explosion_center, 'radius': 40})
+
+                explosion_list.append({
+                    'pos': explosion_center,
+                    'frame': 0,
+                    'timer': 0
+                })
+
                 alien_bullet_list.remove(bullet)
 
                 dx = abs(explosion_center[0] - player_rect.centerx)
@@ -454,10 +506,20 @@ def game():
                     if player_lives <= 0:
                         game_over_screen()
                         return
+
                 continue
 
+            # Red bullet direct hit
+            if bullet['type'] == 'red':
+                if player_rect.collidepoint(bullet['pos'][0], bullet['pos'][1]):
+                    alien_bullet_list.remove(bullet)
+                    player_lives -= 1
+                    player_position_x = SCREEN_WIDTH // 2 - player_ship_width // 2
+                    if player_lives <= 0:
+                        game_over_screen()
+                        return
+
         # Move Enemies
-       
         move_enemies()
 
         # Draw Enemies + Track Rects
@@ -508,8 +570,8 @@ def game():
                 screen.blit(background_image, (0, 0))
                 msg = font.render("Level Complete!", True, WHITE)
                 msg2 = small_font.render("Press ENTER for next level or ESC to quit", True, WHITE)
-                screen.blit(msg, (SCREEN_WIDTH//2 - msg.get_width()//2, 250))
-                screen.blit(msg2, (SCREEN_WIDTH//2 - msg2.get_width()//2, 320))
+                screen.blit(msg, (SCREEN_WIDTH // 2 - msg.get_width() // 2, 250))
+                screen.blit(msg2, (SCREEN_WIDTH // 2 - msg2.get_width() // 2, 320))
                 pygame.display.flip()
 
                 for event in pygame.event.get():
@@ -518,17 +580,6 @@ def game():
                             waiting = False
                         if event.key == pygame.K_ESCAPE:
                             return
-
-        # Red Bullet Direct Hit
-        for bullet in alien_bullet_list[:]:
-            if bullet['color'] == RED:
-                if player_rect.collidepoint(bullet['pos'][0], bullet['pos'][1]):
-                    alien_bullet_list.remove(bullet)
-                    player_lives -= 1
-                    player_position_x = SCREEN_WIDTH // 2 - player_ship_width // 2
-                    if player_lives <= 0:
-                        game_over_screen()
-                        return
 
         # HUD
         lives_text = small_font.render(f"Lives: {player_lives}", True, WHITE)
@@ -542,6 +593,7 @@ def game():
         pygame.display.flip()
         clock.tick(120)
 
+
 # Game Over Screen
 def game_over_screen():
     while True:
@@ -549,8 +601,8 @@ def game_over_screen():
         over_text = font.render("Game Over!", True, WHITE)
         prompt_text = small_font.render("Press ENTER to Restart or ESC to Quit", True, WHITE)
 
-        screen.blit(over_text, (SCREEN_WIDTH//2 - over_text.get_width()//2, SCREEN_HEIGHT//2 - 40))
-        screen.blit(prompt_text, (SCREEN_WIDTH//2 - prompt_text.get_width()//2, SCREEN_HEIGHT//2 + 10))
+        screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 40))
+        screen.blit(prompt_text, (SCREEN_WIDTH // 2 - prompt_text.get_width() // 2, SCREEN_HEIGHT // 2 + 10))
 
         pygame.display.flip()
 
@@ -567,4 +619,3 @@ def game_over_screen():
 # Start Game
 if __name__ == "__main__":
     main_menu()
-
