@@ -4,7 +4,6 @@
 # Fully merged, corrected, and cleaned
 #------------------------------------------------------------------#
 
-from pickle import TRUE
 import pygame
 import sys
 import random
@@ -49,6 +48,10 @@ selected_ship_color = GREEN
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 SCREEN_WIDTH, SCREEN_HEIGHT = screen.get_size()
 
+# BACKGROUND
+background_image = pygame.image.load("assets/background/SpaceBg.png").convert()
+background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
 # Boss vertical position (top area)
 BOSS_Y_POSITION = max(20, int(SCREEN_HEIGHT * 0.08))
 
@@ -70,10 +73,6 @@ player_shoot_sound = pygame.mixer.Sound("assets/audio/player_ship.mp3")
 death_sound = pygame.mixer.Sound("assets/audio/death audio.mp3")
 ship_damage_sound = pygame.mixer.Sound("assets/audio/ship dmg.ogg")
 
-def start_main_menu_music():
-    pygame.mixer.music.load(MAIN_MENU_MUSIC)
-    pygame.mixer.music.play(-1)
-
 #sfx volume
 boss_alarm_sound.set_volume(GLOBAL_SFX_VOLUME)
 laser_fire_sound.set_volume(GLOBAL_SFX_VOLUME)
@@ -81,13 +80,15 @@ player_shoot_sound.set_volume(GLOBAL_SFX_VOLUME)
 death_sound.set_volume(GLOBAL_SFX_VOLUME)
 ship_damage_sound.set_volume(GLOBAL_SFX_VOLUME)
 
+
+def start_main_menu_music():
+    pygame.mixer.music.load(MAIN_MENU_MUSIC)
+    pygame.mixer.music.play(-1)
+
 def draw_centered_text(surface, text, font_obj, y, color):
     text_surf = font_obj.render(text, True, color)
     x = SCREEN_WIDTH // 2 - text_surf.get_width() // 2
     surface.blit(text_surf, (x, y))
-# BACKGROUND
-background_image = pygame.image.load("assets/background/SpaceBg.png").convert()
-background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
 # NEON TITLE TEXT
 def draw_neon_text(surface, text, font_obj, x, y, base_color):
@@ -238,6 +239,49 @@ def boss_select_menu(volume_button):
         pygame.display.flip()
         clock.tick(120)
 
+# IMAGE SCALING
+def scale_image_keep_aspect(img, target_width):
+    scale_factor = target_width / img.get_width()
+    new_height = int(img.get_height() * scale_factor)
+    return pygame.transform.scale(img, (target_width, new_height))
+
+# LOAD PLAYER ANIMATION
+def load_player_animation_frames(target_width):
+    frames = []
+    for i in range(1, 10):
+        filename = f"assets/player/redfighter{i:04}.png"
+        img = pygame.image.load(filename).convert_alpha()
+        img = scale_image_keep_aspect(img, target_width)
+        frames.append(img)
+    return frames
+
+# LOAD BOMB FRAMES
+def load_bomb_frames(target_width):
+    travel = pygame.image.load("assets/explosions/bomb-a.png").convert_alpha()
+    travel = scale_image_keep_aspect(travel, target_width)
+
+    explosion_frames = []
+    for name in ["b", "c", "d", "e"]:
+        img = pygame.image.load(f"assets/explosions/bomb-{name}.png").convert_alpha()
+        img = scale_image_keep_aspect(img, target_width)
+        explosion_frames.append(img)
+
+    return travel, explosion_frames
+
+# LOAD ALIEN SPRITES
+def load_alien_sprites(target_width):
+    alien_sprites = {}
+    for color in ALIEN_COLORS:
+        alien_sprites[color] = {}
+        for version in ALIEN_VERSIONS:
+            frames = []
+            for frame_index in range(1, 4):
+                filename = f"assets/aliens/xenis-{color}-{version}-{frame_index}.png"
+                img = pygame.image.load(filename).convert_alpha()
+                img = scale_image_keep_aspect(img, target_width)
+                frames.append(img)
+            alien_sprites[color][version] = frames
+    return alien_sprites
 
 
 # MAIN MENU
@@ -295,50 +339,6 @@ def main_menu():
 
         pygame.display.flip()
         clock.tick(120)
-
-# IMAGE SCALING
-def scale_image_keep_aspect(img, target_width):
-    scale_factor = target_width / img.get_width()
-    new_height = int(img.get_height() * scale_factor)
-    return pygame.transform.scale(img, (target_width, new_height))
-
-# LOAD PLAYER ANIMATION
-def load_player_animation_frames(target_width):
-    frames = []
-    for i in range(1, 10):
-        filename = f"assets/player/redfighter{i:04}.png"
-        img = pygame.image.load(filename).convert_alpha()
-        img = scale_image_keep_aspect(img, target_width)
-        frames.append(img)
-    return frames
-
-# LOAD BOMB FRAMES
-def load_bomb_frames(target_width):
-    travel = pygame.image.load("assets/explosions/bomb-a.png").convert_alpha()
-    travel = scale_image_keep_aspect(travel, target_width)
-
-    explosion_frames = []
-    for name in ["b", "c", "d", "e"]:
-        img = pygame.image.load(f"assets/explosions/bomb-{name}.png").convert_alpha()
-        img = scale_image_keep_aspect(img, target_width)
-        explosion_frames.append(img)
-
-    return travel, explosion_frames
-
-# LOAD ALIEN SPRITES
-def load_alien_sprites(target_width):
-    alien_sprites = {}
-    for color in ALIEN_COLORS:
-        alien_sprites[color] = {}
-        for version in ALIEN_VERSIONS:
-            frames = []
-            for frame_index in range(1, 4):
-                filename = f"assets/aliens/xenis-{color}-{version}-{frame_index}.png"
-                img = pygame.image.load(filename).convert_alpha()
-                img = scale_image_keep_aspect(img, target_width)
-                frames.append(img)
-            alien_sprites[color][version] = frames
-    return alien_sprites
 
 # GAME LOOP
 def game(start_boss=None, boss_mode=False, volume_button=None):
