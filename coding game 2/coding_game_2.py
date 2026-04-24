@@ -4,6 +4,7 @@
 # Fully merged, corrected, and cleaned
 #------------------------------------------------------------------#
 
+from pickle import TRUE
 import pygame
 import sys
 import random
@@ -237,27 +238,7 @@ def boss_select_menu(volume_button):
         pygame.display.flip()
         clock.tick(120)
 
-def game_over_screen():
-    screen.fill(BLACK)
 
-    msg1 = font.render("YOU DIED", True, RED)
-    msg2 = small_font.render("Press ENTER to return to Main Menu", True, WHITE)
-
-    screen.blit(msg1, (SCREEN_WIDTH//2 - msg1.get_width()//2, SCREEN_HEIGHT//2 - 80))
-    screen.blit(msg2, (SCREEN_WIDTH//2 - msg2.get_width()//2, SCREEN_HEIGHT//2))
-
-    pygame.display.flip()
-
-    waiting = True
-    while waiting:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    waiting = False
 
 # MAIN MENU
 def main_menu():
@@ -648,13 +629,46 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
         screen.blit(background_image, (0, 0))
 
         if player_dead:
-            # Freeze gameplay completely
-            if current_time - death_trigger_time >= int(death_sound.get_length() * 1000):
-                game_over_screen()
+            # Wait for death sound but draw a black Game Over overlay each frame
+            death_len_ms = int(death_sound.get_length() * 1000)
+            if death_len_ms <= 0:
+                death_len_ms = 1000
+
+            # Draw black background + text while waiting
+            screen.fill(BLACK)
+            over_text = font.render("Game Over!", True, WHITE)
+            prompt_text = small_font.render("Press ENTER to Restart or ESC to Quit", True, WHITE)
+            screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 40))
+            screen.blit(prompt_text, (SCREEN_WIDTH // 2 - prompt_text.get_width() // 2, SCREEN_HEIGHT // 2 + 10))
+            pygame.display.flip()
+
+            # Process events while waiting so input is responsive
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        death_sound.stop()
+                        game(volume_button=volume_button)
+                        return
+                    if event.key == pygame.K_ESCAPE:
+                        # Stop death sound and return to main menu
+                        try:
+                            death_sound.stop()
+                        except Exception:
+                            pass
+                        # Restart menu music if appropriate
+                        if volume_button and not volume_button.muted and not pygame.mixer.music.get_busy():
+                            start_main_menu_music()
+                        return
+
+            # If the death sound has finished, hand off to the full Game Over handler
+            if current_time - death_trigger_time >= death_len_ms:
+                game_over_screen(volume_button)
                 return
 
-            pygame.display.flip()
-            clock.tick(120)
+            clock.tick(60)
             continue
 
 
@@ -841,6 +855,7 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
 
                     explosion_radius = 90 if bullet['type'] == 'bomber_green' else 40
 
+                    # APPLY DAMAGE HERE
                     if not player_invulnerable:
                         if dx <= player_rect.width//2 + explosion_radius and dy <= player_rect.height//2 + explosion_radius:
                             ship_damage_sound.play()
@@ -852,12 +867,7 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
                             player_blink_timer = current_time
 
                             if player_lives <= 0:
-                                pygame.mixer.music.stop()
-                                death_sound.play()
-                                game_over_screen()
-                                return
-
-                continue  # prevents red bullet logic from running on green bombs
+                                handle_player_death()
 
             # RED BULLET DIRECT HIT
             if bullet['type'] == 'red':
@@ -874,10 +884,7 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
                         player_blink_timer = current_time
 
                         if player_lives <= 0:
-                            pygame.mixer.music.stop()
-                            death_sound.play()
-                            game_over_screen()
-                            return
+                            handle_player_death()
                          
 
                 continue
@@ -905,30 +912,51 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
         if not boss_active:
             for bullet in player_bullet_list[:]:
                 bullet_rect = pygame.Rect(bullet[0], bullet[1], 5, 10)
+                hit = False
                 for enemy, enemy_rect in zip(enemy_list[:], enemy_rect_list[:]):
+                    # check bullet vs enemy (not player)
                     if enemy_rect.colliderect(bullet_rect):
-                        enemy_list.remove(enemy)
-                        player_bullet_list.remove(bullet)
-                        enemy_rect_list.remove(enemy_rect)
+                        try:
+                            enemy_list.remove(enemy)
+                        except ValueError:
+                            pass
+                        try:
+                            player_bullet_list.remove(bullet)
+                        except ValueError:
+                            pass
+                        hit = True
                         break
+                if hit:
+                    # stop processing this bullet and continue with next frame
+                    continue
 
         # NORMAL ALIEN COLLISION WITH PLAYER
         if not boss_active:
-            for enemy_rect in enemy_rect_list:
+            death_happened = False
+            for enemy, enemy_rect in zip(enemy_list[:], enemy_rect_list[:]):
                 if enemy_rect.colliderect(player_rect):
-                    game_over_screen()
-                    return
+                    handle_player_death()
+                    death_happened = True
+                    break
+            if death_happened:
+                # let the main loop run the player_dead freeze and Game Over flow
+                continue
 
         # NORMAL ALIENS REACH BOTTOM
         if not boss_active:
-            for enemy in enemy_list:
+            death_happened = False
+            for enemy in enemy_list[:]:
                 color = enemy["color"]
                 version = enemy["version"]
                 frame = alien_sprites[color][version][0]
                 alien_height = frame.get_height()
                 if enemy["y"] + alien_height >= player_position_y:
-                    game_over_screen()
-                    return
+                    handle_player_death()
+                    death_happened = True
+                    break
+            if death_happened:
+                
+                continue
 
         # LEVEL COMPLETE
         if not boss_active and not enemy_list:
@@ -1066,7 +1094,7 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
 
                 elif boss_type == "hive_mother":
                     # Summon minions
-                    if len(hive_minion_list) < 6:
+                    if len(hive_minion_list) < 8:
                         angle = random.uniform(0, 360)
                         hive_minion_list.append({
                             "angle": angle,
@@ -1129,16 +1157,8 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
                             player_blink_timer = current_time
 
                             if player_lives <= 0:
-                                pygame.mixer.music.stop()      
-                                boss_alarm_sound.stop()        
-                                laser_fire_sound.stop()        
-                                player_shoot_sound.stop()      
+                                handle_player_death()
 
-                                death_sound.play()            
-                                pygame.time.delay(int(death_sound.get_length() * 1000))
-
-                                game_over_screen()
-                                return
 
                     # End of laser duration
                     if current_time - laser_fire_start_time >= laser_fire_duration_ms:
@@ -1232,28 +1252,6 @@ def game(start_boss=None, boss_mode=False, volume_button=None):
 
         pygame.display.flip()
         clock.tick(120)
-
-# GAME OVER SCREEN
-def game_over_screen():
-    while True:
-        screen.blit(background_image, (0, 0))
-        over_text = font.render("Game Over!", True, WHITE)
-        prompt_text = small_font.render("Press ENTER to Restart or ESC to Quit", True, WHITE)
-
-        screen.blit(over_text, (SCREEN_WIDTH // 2 - over_text.get_width() // 2, SCREEN_HEIGHT // 2 - 40))
-        screen.blit(prompt_text, (SCREEN_WIDTH // 2 - prompt_text.get_width() // 2, SCREEN_HEIGHT // 2 + 10))
-
-        pygame.display.flip()
-
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    death_sound.stop()
-                    game(volume_button=volume_button)
-                    return
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    sys.exit()
 
 # START GAME
 if __name__ == "__main__":
